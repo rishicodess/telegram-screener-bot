@@ -244,7 +244,7 @@ def build_universe():
     # 🔐 Cloud fallback if NSE blocks
     if not symbols:
         symbols = [
-            "RELIANCE","TCS","INFY","HDFCBANK","ICICIBANK","SBIN","AXISBANK",
+            "RELIANCE","TCS","HINDCOPPER","INFY","HDFCBANK","ICICIBANK","SBIN","AXISBANK",
     "LT","ITC","BHARTIARTL","KOTAKBANK","HCLTECH","ADANIENT",
     "ADANIPORTS","BAJFINANCE","BAJAJFINSV","MARUTI","SUNPHARMA",
     "TITAN","ULTRACEMCO","WIPRO","NTPC","POWERGRID","ONGC",
