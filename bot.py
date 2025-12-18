@@ -17,29 +17,25 @@ def send_telegram(msg):
 
 def run_scan():
     send_telegram("📊 Scan started...")
-    
-    # ==============================
-    # 🔥 PUT YOUR EXISTING SCREENER LOGIC HERE
-    # main_scan()
-    # ==============================
-
+    # main_scan()  # your logic here
     send_telegram("✅ Scan completed.")
 
+# 🔴 THIS ROUTE MUST MATCH THE WEBHOOK PATH
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
-def webhook():
-    data = request.json
+def telegram_webhook():
+    data = request.get_json()
 
     if "message" in data:
         text = data["message"].get("text", "")
         if text == "/scan":
             run_scan()
 
-    return "OK"
+    return "OK", 200
 
 @app.route("/")
 def home():
     return "Bot is alive 🚀"
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
