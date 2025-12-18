@@ -278,6 +278,16 @@ def scan(universe):
 # MAIN SCAN EXECUTION
 # =====================================================================
 def main_scan():
+    telegram("🔍 Cloud scan started (debug mode)")
+
+    universe = build_universe()
+
+    telegram(f"🧪 Universe size: {len(universe)}")
+
+    if not universe:
+        telegram("❌ Universe is EMPTY on cloud")
+        return
+
     universe = build_universe()
     picks = scan(universe)
 
