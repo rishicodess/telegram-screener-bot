@@ -172,7 +172,7 @@ def evaluate(df):
 
         avg_vol20 = float(volume.tail(20).mean())
         today_vol = float(volume.iloc[-1])
-        cond_vol = today_vol > 1.2 * avg_vol20 and avg_vol20 > 200000
+        cond_vol = today_vol > 1.1 * avg_vol20
 
         high20 = float(high.tail(20).max())
         breakout20 = cmp_price > high20
@@ -278,93 +278,127 @@ def scan(universe):
 # MAIN SCAN EXECUTION
 # =====================================================================
 def main_scan():
-    telegram("🔍 Cloud scan started (debug mode)")
+    # ======================================================
+    # 1️⃣ START + UNIVERSE
+    # ======================================================
+    telegram("🔍 Cloud scan started")
 
     universe = build_universe()
-
     telegram(f"🧪 Universe size: {len(universe)}")
 
     if not universe:
-        telegram("❌ Universe is EMPTY on cloud")
+        telegram("❌ Universe is EMPTY (data source issue)")
         return
 
-    universe = build_universe()
+    # ======================================================
+    # 2️⃣ RUN SCAN
+    # ======================================================
     picks = scan(universe)
+    telegram(f"🧪 Stocks passing scan(): {len(picks)}")
 
+    if not picks:
+        telegram("⚠ All stocks failed filters today")
+        telegram("✅ Scan completed")
+        return
+
+    # ======================================================
+    # 3️⃣ RANKING
+    # ======================================================
     ranked = []
     for sym, d in picks:
-        ema_score = (d["EMA20"] - d["EMA50"]) / d["EMA50"]
-        rsi_score = 1 - abs(d["RSI"] - 60) / 15
-        ranked.append((ema_score + rsi_score, sym, d))
+        try:
+            ema_score = (d["EMA20"] - d["EMA50"]) / d["EMA50"]
+            rsi_score = 1 - abs(d["RSI"] - 60) / 15
+            score = ema_score + rsi_score
+            ranked.append((score, sym, d))
+        except Exception as e:
+            telegram(f"⚠ Ranking error for {sym}: {e}")
 
     ranked.sort(reverse=True)
     top = ranked[:15]
 
-    if top:
-        msg = "<b>🔥 Top Swing Picks</b>\n\n"
+    if not top:
+        telegram("⚠ No stocks after ranking")
+        telegram("✅ Scan completed")
+        return
 
-        for rank, sym, d in top:
+    # ======================================================
+    # 4️⃣ TELEGRAM MESSAGE
+    # ======================================================
+    msg = "<b>🔥 Top Swing Picks</b>\n\n"
 
-            trend = "Strong Uptrend" if d["EMA20"] > d["EMA50"] else "Weak Trend"
+    for score, sym, d in top:
+        trend = "Strong Uptrend" if d["EMA20"] > d["EMA50"] else "Weak Trend"
 
-            rsi_txt = ("Overbought" if d["RSI"] >= 65 
-                       else "Healthy Momentum" if d["RSI"] >= 55 
-                       else "Weak Momentum")
+        rsi_txt = (
+            "Overbought" if d["RSI"] >= 65 else
+            "Healthy Momentum" if d["RSI"] >= 55 else
+            "Weak Momentum"
+        )
 
-            vol_factor = d["TodayVol"] / d["AvgVol20"]
-            if vol_factor >= 2:
-                vol_txt = "Very Strong Volume"
-            elif vol_factor >= 1.2:
-                vol_txt = "Strong Volume"
-            else:
-                vol_txt = "Normal Volume"
+        vol_factor = (
+            d["TodayVol"] / d["AvgVol20"]
+            if d["AvgVol20"] and d["AvgVol20"] > 0 else 0
+        )
 
-            fake_label = ["LOW", "MEDIUM", "HIGH", "VERY HIGH"][d["FakeScore"]]
+        if vol_factor >= 2:
+            vol_txt = "Very Strong Volume"
+        elif vol_factor >= 1.2:
+            vol_txt = "Strong Volume"
+        else:
+            vol_txt = "Normal Volume"
 
-            zone_txt = ""
-            if d["ZoneLow"] is not None:
-                zone_txt = (
-                    f"🟦 <b>Res Zone:</b> ₹{round(d['ZoneLow'])}-₹{round(d['ZoneHigh'])} "
-                    f"(Touches: {d['ZoneTouches']})\n"
-                )
+        fake_score = min(d.get("FakeScore", 0), 3)
+        fake_label = ["LOW", "MEDIUM", "HIGH", "VERY HIGH"][fake_score]
 
-            tags = []
-            if d["Breakout20D"]:
-                tags.append("🚀 20D Breakout")
-            if d["ZoneBreakout"]:
-                tags.append("🔥 Zone Breakout")
-
-            msg += (
-                f"<b>{sym}</b> {' | '.join(tags)}\n"
-                f"💰 CMP: ₹{round(d['CMP'])}\n"
-                f"📈 Trend: {trend}\n"
-                f"💪 RSI: {round(d['RSI'])} ({rsi_txt})\n"
-                f"📊 Volume: {vol_txt}\n"
-                f"{zone_txt}"
-                f"⚡ Fakeout Risk: {fake_label}\n"
-                f"------------------------\n"
+        zone_txt = ""
+        if d.get("ZoneLow") is not None:
+            zone_txt = (
+                f"🟦 <b>Res Zone:</b> ₹{round(d['ZoneLow'])}-₹{round(d['ZoneHigh'])} "
+                f"(Touches: {d['ZoneTouches']})\n"
             )
 
-        telegram(msg)
-    else:
-        telegram("⚠ No Swing Setups Today")
+        tags = []
+        if d.get("Breakout20D"):
+            tags.append("🚀 20D Breakout")
+        if d.get("ZoneBreakout"):
+            tags.append("🔥 Zone Breakout")
 
-    # Excel Export
-    wb = Workbook()
-    ws = wb.active
-    ws.append([
-        "Symbol","CMP","EMA20","EMA50","RSI","AvgVol20","TodayVol",
-        "Breakout20D","ZoneBreakout","ZoneLow","ZoneHigh","ZoneTouches",
-        "FakeScore","FakeWick","FakeLowVol","FakeRSI"
-    ])
+        msg += (
+            f"<b>{sym}</b> {' | '.join(tags)}\n"
+            f"💰 CMP: ₹{round(d['CMP'],2)}\n"
+            f"📈 Trend: {trend}\n"
+            f"💪 RSI: {round(d['RSI'],1)} ({rsi_txt})\n"
+            f"📊 Volume: {vol_txt}\n"
+            f"{zone_txt}"
+            f"⚡ Fakeout Risk: {fake_label}\n"
+            f"------------------------\n"
+        )
 
-    for rank, sym, d in top:
+    telegram(msg)
+    telegram("✅ Scan completed")
+
+    # ======================================================
+    # 5️⃣ EXCEL EXPORT (OPTIONAL ON CLOUD)
+    # ======================================================
+    try:
+        wb = Workbook()
+        ws = wb.active
         ws.append([
-            sym, d["CMP"], d["EMA20"], d["EMA50"], d["RSI"],
-            d["AvgVol20"], d["TodayVol"], d["Breakout20D"],
-            d["ZoneBreakout"], d["ZoneLow"], d["ZoneHigh"],
-            d["ZoneTouches"], d["FakeScore"], d["FakeWick"],
-            d["FakeLowVol"], d["FakeRSI"]
+            "Symbol","CMP","EMA20","EMA50","RSI","AvgVol20","TodayVol",
+            "Breakout20D","ZoneBreakout","ZoneLow","ZoneHigh","ZoneTouches",
+            "FakeScore","FakeWick","FakeLowVol","FakeRSI"
         ])
 
-    wb.save("Top_Swing_Picks_v5.xlsx")
+        for _, sym, d in top:
+            ws.append([
+                sym, d["CMP"], d["EMA20"], d["EMA50"], d["RSI"],
+                d["AvgVol20"], d["TodayVol"], d["Breakout20D"],
+                d["ZoneBreakout"], d["ZoneLow"], d["ZoneHigh"],
+                d["ZoneTouches"], d["FakeScore"], d["FakeWick"],
+                d["FakeLowVol"], d["FakeRSI"]
+            ])
+
+        wb.save("Top_Swing_Picks_v5.xlsx")
+    except Exception as e:
+        telegram(f"⚠ Excel export skipped: {e}")
