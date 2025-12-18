@@ -2,8 +2,9 @@ import os
 from flask import Flask, request
 import requests
 
-TELEGRAM_TOKEN = os.environ.get("8254088115:AAEVVnMW4TE07EiVLhccoecPIee5GXVOV8M")
-CHAT_ID = os.environ.get("1463068783")
+# ✅ CORRECT: read ENV VARIABLE NAMES
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID"))
 
 app = Flask(__name__)
 
@@ -17,18 +18,24 @@ def send_telegram(msg):
 
 def run_scan():
     send_telegram("📊 Scan started...")
-    # main_scan()  # your logic here
+    # main_scan()  # your screener logic
     send_telegram("✅ Scan completed.")
 
-# 🔴 THIS ROUTE MUST MATCH THE WEBHOOK PATH
-@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+# ✅ SAFE, STATIC WEBHOOK PATH
+@app.route("/webhook", methods=["POST"])
 def telegram_webhook():
-    data = request.get_json()
+    data = request.get_json(force=True)
 
-    if "message" in data:
-        text = data["message"].get("text", "")
-        if text == "/scan":
-            run_scan()
+    message = data.get("message", {})
+    text = message.get("text", "")
+    chat_id = message.get("chat", {}).get("id")
+
+    # 🔒 Security: allow only your chat
+    if chat_id != CHAT_ID:
+        return "Unauthorized", 403
+
+    if text == "/scan":
+        run_scan()
 
     return "OK", 200
 
