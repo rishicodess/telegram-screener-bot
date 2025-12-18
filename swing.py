@@ -239,7 +239,16 @@ def fetch_nse_symbols():
 
 def build_universe():
     blacklist = load_blacklist()
-    symbols = fetch_nse_symbols() or []
+    symbols = fetch_nse_symbols()
+
+    # 🔐 Cloud fallback if NSE blocks
+    if not symbols:
+        symbols = [
+            "RELIANCE", "HDFCBANK", "ICICIBANK",
+            "TCS", "INFY", "LT",
+            "SBIN", "AXISBANK", "ITC",
+            "BAJFINANCE", "ADANIENT"
+        ]
 
     bad = {"", " ", "-", "NIFTY", "BANKNIFTY"}
     symbols = [s for s in symbols if s not in bad and s not in blacklist]
@@ -253,6 +262,7 @@ def build_universe():
             failed_attempts[sym] = failed_attempts.get(sym, 0) + 1
             if failed_attempts[sym] >= 2:
                 save_to_blacklist(sym)
+
     return valid
 
 
