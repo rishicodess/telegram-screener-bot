@@ -11,6 +11,7 @@ import requests
 import yfinance as yf
 from openpyxl import Workbook
 from concurrent.futures import ThreadPoolExecutor
+from universe_backup import NIFTY_500
 
 
 # =====================================================================
@@ -239,17 +240,20 @@ def fetch_nse_symbols():
 
 def build_universe():
     blacklist = load_blacklist()
+
+    # 1️⃣ Try live NSE (offline / when allowed)
     symbols = fetch_nse_symbols()
 
-    # 🔐 Cloud fallback if NSE blocks
+    # 2️⃣ Cloud backup: full NIFTY 500
+    if not symbols:
+        symbols = NIFTY_500.copy()
+
+    # 3️⃣ Emergency fallback (never empty)
     if not symbols:
         symbols = [
-            "RELIANCE","TCS","HINDCOPPER","INFY","HDFCBANK","ICICIBANK","SBIN","AXISBANK",
-    "LT","ITC","BHARTIARTL","KOTAKBANK","HCLTECH","ADANIENT",
-    "ADANIPORTS","BAJFINANCE","BAJAJFINSV","MARUTI","SUNPHARMA",
-    "TITAN","ULTRACEMCO","WIPRO","NTPC","POWERGRID","ONGC",
-    "JSWSTEEL","TATASTEEL","COALINDIA","HINDALCO","DIVISLAB"
-         ]
+            "RELIANCE","TCS","INFY","HDFCBANK","ICICIBANK",
+            "SBIN","AXISBANK","LT","ITC","WIPRO","BHARTIARTL"
+        ]
 
     bad = {"", " ", "-", "NIFTY", "BANKNIFTY"}
     symbols = [s for s in symbols if s not in bad and s not in blacklist]
@@ -259,13 +263,8 @@ def build_universe():
         df = safe_download(sym, "1mo")
         if df is not None:
             valid.append(sym)
-        else:
-            failed_attempts[sym] = failed_attempts.get(sym, 0) + 1
-            if failed_attempts[sym] >= 2:
-                save_to_blacklist(sym)
 
     return valid
-
 
 # =====================================================================
 # SCAN
