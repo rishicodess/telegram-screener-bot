@@ -13,6 +13,16 @@ from openpyxl import Workbook
 from concurrent.futures import ThreadPoolExecutor
 from universe_backup import NIFTY_500
 
+# ------------------------------------------------------
+# Yahoo Finance symbol aliases (NSE → Yahoo mapping)
+# ------------------------------------------------------
+SYMBOL_ALIAS = {
+    "HDFC": "HDFCBANK",          # HDFC merged
+    "MINDTREE": "LTIM",          # Merged into LTIMindtree
+    "ADANITRANS": "ADANIENSOL",  # Renamed
+    "AMARAJABAT": "AMARAJABAT",  # Legacy but keep explicit
+    "MCDOWELL-N": "MCDOWELL-N",  # Yahoo naming quirk
+}
 
 # =====================================================================
 # TELEGRAM CONFIG
@@ -57,13 +67,19 @@ def save_to_blacklist(symbol):
 # =====================================================================
 def safe_download(sym, period="1mo"):
     try:
-        df = yf.Ticker(sym + ".NS").history(
-            period=period,
-            interval="1d",
-            auto_adjust=False
-        )
+        # Apply Yahoo alias if exists
+        sym = SYMBOL_ALIAS.get(sym, sym)
+
+        ticker = yf.Ticker(sym + ".NS")
+        df = ticker.history(period=period)
+
         if df is None or df.empty:
             return None
+
+        return df
+
+    except Exception:
+        return None
 
         df.index = pd.to_datetime(df.index)
 
