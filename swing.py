@@ -254,21 +254,41 @@ def fetch_nse_symbols():
     except:
         return None
 
+def load_csv_universe():
+    try:
+        if not os.path.exists("nifty500.csv"):
+            return []
+
+        df = pd.read_csv("nifty500.csv")
+        if "Symbol" not in df.columns:
+            return []
+
+        symbols = df["Symbol"].dropna().astype(str).tolist()
+        return symbols
+
+    except Exception:
+        return []
+
+
 def build_universe():
     blacklist = load_blacklist()
 
-    # 1️⃣ Try live NSE (offline / when allowed)
+    # 1️⃣ Try NSE live (works offline)
     symbols = fetch_nse_symbols()
 
-    # 2️⃣ Cloud backup: full NIFTY 500
+    # 2️⃣ CSV snapshot (cloud-safe)
+    if not symbols:
+        symbols = load_csv_universe()
+
+    # 3️⃣ Static backup
     if not symbols:
         symbols = NIFTY_500.copy()
 
-    # 3️⃣ Emergency fallback (never empty)
+    # 4️⃣ Emergency fallback
     if not symbols:
         symbols = [
             "RELIANCE","TCS","INFY","HDFCBANK","ICICIBANK",
-            "SBIN","AXISBANK","LT","ITC","WIPRO","BHARTIARTL"
+            "SBIN","AXISBANK","LT","ITC","WIPRO"
         ]
 
     bad = {"", " ", "-", "NIFTY", "BANKNIFTY"}
@@ -276,7 +296,7 @@ def build_universe():
 
     valid = []
     for sym in symbols:
-        df = safe_download(sym, "1mo")
+        df = safe_download(sym)
         if df is not None:
             valid.append(sym)
 
